@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="sp">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -8,57 +8,66 @@
   </head>
   <body>
     <div class="container">
-      <h1>Text Reader AI</h1>
-      <p>Use Microsoft Edge reader.</p>
       <div
-        x-data="{input:'',buffer:'', showInput: true}"
-        class="cont"
+        x-data="{draft:'', buffer:'', edit: true}"
         history="true"
         history-limit="100"
       >
-        <textarea
-          x-show="showInput"
-          @keydown.enter.prevent="
-            if ($event.target.value.length > 0) {
-              $set('input', $event.target.value);
-              $event.target.value = '';
-            }
-          "
-          @change="$set('input',$event.target.value)"
-          x-bind="buffer"
-          placeholder="Insert your text here..."
-        ></textarea>
-        <div class="buttons">
-          <div class="top">
-            <button class="showInput" x-set="showInput=!showInput">
-              <strong x-text="showInput ? 'Hide' : 'Show' "></strong> input
-            </button>
-            <button x-undo="input">Undo</button>
-            <button x-redo="input">Redo</button>
-          </div>
-          <div>
-            <button x-set="input=buffer" x-show="buffer !== ''">Add</button>
-            <button
-              x-set="input=''; buffer=''"
-              x-show="input !== '' || buffer !== ''"
+        <!-- editing -->
+        <div x-show="edit">
+          <div class="wrapper">
+            <textarea
+            x-ref="draft"
+            placeholder="Type here..."
+            x-bind="buffer"
+              @keydown.window.shift.enter="
+              if($state.edit === true){
+                $set('draft', $state.buffer);
+                $set('edit', false)
+              }
+            "
+            ></textarea>
+            
+            <small
+            >Click [shift][enter] to save and enter
+            <strong>VIEW</strong> mode.</small
             >
-              Clear
-            </button>
+            <button x-set="edit=false;draft=buffer">Enter view</button>
+            
+            <div>
+              <button x-undo="buffer">Undo</button>
+              <button x-redo="buffer">Redo</button>
+            </div>
+              <h3>Edit Mode</h3>
           </div>
         </div>
-        <div class="text">
-          <div x-show="input === ''">
-            <hr />
-            <h2>Your text here, for AI readers.</h2>
+
+        <!-- viewing -->
+        <div x-show="!edit">
+          <div
+            class="wrapper"
+            @keydown.window.escape="
+              $set('edit', true);
+
+              $nextTick(() => {
+                $refs.draft.focus();
+                console.log($refs.draft);
+              });
+              "
+          >
+          <div class="view">
+            <p x-watch="draft"></p>
+              <small>Click [escape] to enter <strong>EDIT</strong> mode.</small>
+              <button x-set="edit=true">Enter edit</button>
+              <div>
+                <button x-undo="draft">Undo</button>
+                <button x-redo="draft">Redo</button>
+              </div>
+              <h3>View Mode</h3>
+            </div>
           </div>
-        </div>
-        <div class="content" x-show="input.length > 0">
-          <p x-watch="input"></p>
         </div>
       </div>
-      <footer>
-        <p>Created with Attr.JS</p>
-      </footer>
     </div>
   </body>
 
@@ -81,33 +90,16 @@
       margin: 0 auto;
     }
     body {
+      display: flex;
+      flex-direction: column;
       background-color: var(--bg-color);
       color: var(--text-color);
     }
-    .showInput {
-      margin-right: 1rem;
-    }
-    .container {
-      display: flex;
-      flex-direction: column;
-      padding: 2rem;
-    }
-    .cont {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-
-      p {
-        font-family: monospace;
-        font-size: 1.5rem;
-      }
-    }
-    .content {
-      display: flex;
-    }
-    textarea {
+    textarea,
+    .view p {
       min-width: 50vw;
-      min-height: 10vh;
+      min-height: 30vh;
+      max-width: 500px;
       margin: 1rem auto;
       padding: 2rem;
       border-radius: 10px;
@@ -118,34 +110,39 @@
       font-size: 1.5rem;
     }
 
-    button {
-      font-size: 1.5rem;
-      padding: 0.5rem 1rem;
-      border: none;
-      border-radius: 5px;
-      background-color: var(--secondary-color);
+  
+
+    .wrapper {
+      background-color: var(--primary-color);
+      padding: 1rem;
       color: white;
-      cursor: pointer;
-      transition: transform 0.2s;
-    }
-
-    button:hover {
-      transform: scale(1.05);
-    }
-
-    .buttons {
+      border-radius: 10px;
       display: flex;
       flex-direction: column;
-      justify-content: space-evenly;
-      align-items: center;
-      gap: 2rem;
-      margin-bottom: 1rem;
+      gap: 1rem;
+
+      button,
+      small {
+        align-self: center;
+        margin: 1rem;
+      }
+
+      button {
+        padding: 1rem;
+      }
+    }
+
+    .view p {
+      background-color: #2c3e50;
+      color: #ecf0f1;
     }
 
     .container {
       display: flex;
       flex-direction: column;
       gap: 1rem;
+      padding: 1rem;
+      margin: 0 auto;
     }
   </style>
 </html>

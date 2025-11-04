@@ -621,7 +621,26 @@ async function fetchData(url, config = {}) {
   }
 }
 
+function initXRefs(parent = document) {
+  const refs = {}
+
+  const elements = parent.querySelectorAll("[x-ref]")
+  elements.forEach((element) => {
+    const attr = element.getAttribute("x-ref")
+    if (refs[attr]) {
+      console.warn(`This ref=[${attr}] is already used.`)
+      return
+    }
+    refs[attr] = element
+  })
+
+  log("refs: ", refs)
+  return refs
+}
+
 function initXAction(parent = document, watcher, scope) {
+  const refs = initXRefs(parent)
+
   const allElements = parent.querySelectorAll("*")
 
   allElements.forEach((element) => {
@@ -630,12 +649,17 @@ function initXAction(parent = document, watcher, scope) {
       ...scope,
       $element: element,
       $state: watcher.obj,
+      $id: watcher.obj.id,
       $set: (prop, value) => {
         watcher.batchedSetProp(prop, value)
       },
       $fetch: async (prop, url) => {
         watcher.batchedSetProp(prop, await fetchData(url))
       },
+      $nextTick: (cb) => {
+        queueMicrotask(() => cb())
+      },
+      $refs: refs,
     }
 
     for (let attribute of element.attributes) {
@@ -778,7 +802,6 @@ function initXData(parent = document, outerScope = {}) {
     }
 
     let scope = stringToObject2(element.getAttribute("x-data"))(evalContext)
-    log("scope", scope)
 
     if (scopeName) {
       const registryName = `$${scopeName}`
@@ -789,10 +812,13 @@ function initXData(parent = document, outerScope = {}) {
       scope.$parent = outerScope
     }
 
+    const refs = initXRefs(element)
     scope = {
       ...scope,
       ...ScopeRegistry,
+      $refs: refs,
     }
+    log("scope", scope)
 
     const isArray = []
     for (let prop in scope) {
@@ -890,11 +916,14 @@ class Component {
       $id: this.state.id,
       $set: (prop, value) => {
         this.setState(prop, value)
-      },
+      }, // all below are being tested now
       $fetch: async (prop, url) => {
         this.setState(prop, await fetchData(url))
       },
-      // $destroy: this.destroy,
+      $destroy: this.destroy,
+      $nextTick: (cb) => {
+        queueMicrotask(cb())
+      },
     }
 
     this.hooks[type].forEach((cb) => cb(context))
