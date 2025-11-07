@@ -8,68 +8,104 @@
   </head>
   <body>
     <div class="container">
-      <div
-        x-data="{draft:'', buffer:'', edit: true}"
-        history="true"
-        history-limit="100"
-      >
-        <!-- editing -->
-        <div x-show="edit">
-          <div class="wrapper">
-            <textarea
+      <div component="editor"></div>
+    </div>
+  </body>
+
+  <template
+    id="editor"
+    x-data="{draft:'', buffer:'', edit: true}"
+    history="true"
+    history-limit="100"
+    animate.enter="backInDown"
+    animate.exit="backOutUp"
+  >
+    <div
+      @after-mount="
+          $nextTick(()=>{
+            $refs.draft.focus();
+          });
+          "
+    >
+      <!-- editing -->
+      <div x-show="edit">
+        <div class="wrapper">
+          <h3>Buffer: <strong x-cursor="buffer"></strong> / 100</h3>
+          <textarea
             x-ref="draft"
             placeholder="Type here..."
             x-bind="buffer"
-              @keydown.window.shift.enter="
+            @keydown.window.shift.enter="
               if($state.edit === true){
                 $set('draft', $state.buffer);
                 $set('edit', false)
               }
             "
-            ></textarea>
-            
-            <small
+          ></textarea>
+
+          <small
             >Click [shift][enter] to save and enter
             <strong>VIEW</strong> mode.</small
-            >
-            <button x-set="edit=false;draft=buffer">Enter view</button>
-            
-            <div>
-              <button x-undo="buffer">Undo</button>
-              <button x-redo="buffer">Redo</button>
-            </div>
-              <h3>Edit Mode</h3>
-          </div>
-        </div>
-
-        <!-- viewing -->
-        <div x-show="!edit">
-          <div
-            class="wrapper"
-            @keydown.window.escape="
-              $set('edit', true);
-
-              $nextTick(() => {
-                $refs.draft.focus();
-                console.log($refs.draft);
-              });
-              "
           >
-          <div class="view">
-            <p x-watch="draft"></p>
-              <small>Click [escape] to enter <strong>EDIT</strong> mode.</small>
-              <button x-set="edit=true">Enter edit</button>
-              <div>
-                <button x-undo="draft">Undo</button>
-                <button x-redo="draft">Redo</button>
-              </div>
-              <h3>View Mode</h3>
-            </div>
+          <button x-set="edit=false;draft=buffer">Enter view</button>
+
+          <div
+            @keydown.window.ctrl.z="
+            
+            if($state.edit){
+              $undo('buffer') 
+            }
+            "
+            @keydown.window.ctrl.y="
+            if($state.edit){
+              $redo('buffer') 
+            }
+            "
+          >
+            <button x-undo="buffer">Undo</button>
+            <button x-redo="buffer">Redo</button>
           </div>
+          <h3>Edit Mode</h3>
+        </div>
+      </div>
+
+      <!-- viewing -->
+      <div x-show="!edit">
+        <div
+          class="wrapper"
+          @keydown.window.escape="
+          $set('edit', true);
+          $nextTick(() => {
+            $refs.draft.focus();
+          });
+          "
+        >
+          <h3>Draft: <strong x-cursor="draft"></strong> / 100</h3>
+          <p class="draft" x-watch="draft"></p>
+          <small>Click [escape] to enter <strong>EDIT</strong> mode.</small>
+          <button x-set="edit=true">Enter edit</button>
+          <div
+           @keydown.window.ctrl.z="
+           console.log($state.draft, edit)
+            if(!$state.edit){
+              console.log(draft, $state.edit)
+              $undo('draft') 
+            }
+            "
+            @keydown.window.ctrl.y="
+            if(!$state.edit){
+              $redo('draft') 
+            }
+            "
+          >
+            <button x-undo="draft">Undo</button>
+            <button x-redo="draft">Redo</button>
+          </div>
+          <h3>View Mode</h3>
         </div>
       </div>
     </div>
-  </body>
+  </template>
 
   <style>
     footer {
@@ -84,65 +120,32 @@
     * {
       font-family: monospace;
     }
-
-    h1,
-    p {
-      margin: 0 auto;
-    }
-    body {
-      display: flex;
-      flex-direction: column;
-      background-color: var(--bg-color);
-      color: var(--text-color);
-    }
-    textarea,
-    .view p {
-      min-width: 50vw;
-      min-height: 30vh;
-      max-width: 500px;
-      margin: 1rem auto;
-      padding: 2rem;
-      border-radius: 10px;
-      border: 2px solid var(--primary-color);
-      background-color: white;
-      color: var(--text-color);
-      overflow-y: scroll;
-      font-size: 1.5rem;
-    }
-
-  
-
-    .wrapper {
-      background-color: var(--primary-color);
-      padding: 1rem;
-      color: white;
-      border-radius: 10px;
-      display: flex;
-      flex-direction: column;
-      gap: 1rem;
-
-      button,
-      small {
-        align-self: center;
-        margin: 1rem;
-      }
-
-      button {
-        padding: 1rem;
-      }
-    }
-
-    .view p {
-      background-color: #2c3e50;
-      color: #ecf0f1;
-    }
-
     .container {
       display: flex;
       flex-direction: column;
-      gap: 1rem;
-      padding: 1rem;
       margin: 0 auto;
+      max-width: 980px;
+    }
+
+    .wrapper {
+      display: flex;
+      flex-direction: column;
+      padding: 1rem;
+      gap: 1rem;
+    }
+
+    textarea,
+    .draft {
+      height: 300px;
+      padding: 1rem;
+    }
+
+    button {
+      border: none;
+      background-color: var(--secondary-color);
+      color: white;
+      padding: 0.5rem 0.25rem;
+      border-radius: 5px;
     }
   </style>
 </html>

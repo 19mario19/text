@@ -326,6 +326,14 @@ function initXHistory(element, watcher, eventType) {
       })
     })
   })
+  const cursors = element.querySelectorAll("[x-cursor]")
+  cursors.forEach((item) => {
+    const prop = item.getAttribute("x-cursor")
+
+    watcher.getCursor(prop, (val) => {
+      item.textContent = val
+    })
+  })
 }
 
 function initXBind(element, watcher) {
@@ -660,6 +668,8 @@ function initXAction(parent = document, watcher, scope) {
         queueMicrotask(() => cb())
       },
       $refs: refs,
+      $undo: (prop) => watcher.undo(prop),
+      $redo: (prop) => watcher.redo(prop),
     }
 
     for (let attribute of element.attributes) {
@@ -833,12 +843,12 @@ function initXData(parent = document, outerScope = {}) {
     const watcher = new Watcher(scope, attrHistory, historyLimit, safeUndoRedo)
 
     initXComputed(element, watcher, scope)
+    initXShow(element, watcher, scope)
 
     initXGetters(element, watcher)
     initXTexts(element, watcher, scope)
     initXBind(element, watcher)
     initXSetters(element, watcher, scope, isArray, eventType)
-    initXShow(element, watcher, scope)
     initXLoop(element, watcher, scope)
     initXAction(element, watcher, scope, eventType)
     if (attrHistory) initXHistory(element, watcher, eventType)
@@ -894,6 +904,8 @@ class Component {
     this.currentAnimation = null
     this.eventType = "click"
 
+    this.refs = null
+
     this.hooks = {
       [HOOK_TYPE.BEFORE_MOUNT]: [],
       [HOOK_TYPE.AFTER_MOUNT]: [],
@@ -909,21 +921,24 @@ class Component {
   }
 
   callHookSubs(type) {
+    console.log(this.state)
+
     const context = {
       $element: this.node,
       $state: this.state,
       $props: this.props,
       $id: this.state.id,
       $set: (prop, value) => {
+        // only this one will fire update hooks, not x-set
         this.setState(prop, value)
       }, // all below are being tested now
       $fetch: async (prop, url) => {
         this.setState(prop, await fetchData(url))
       },
-      $destroy: this.destroy,
       $nextTick: (cb) => {
-        queueMicrotask(cb())
+        queueMicrotask(() => cb())
       },
+      $refs: this.refs,
     }
 
     this.hooks[type].forEach((cb) => cb(context))
@@ -976,6 +991,8 @@ class Component {
   create(toIndex = null) {
     const fragment = this.template.content.cloneNode(true)
     this.node = fragment.children[0]
+    this.refs = initXRefs(this.node)
+
     this.initWatcher() // must be initializated after this.node is created
 
     let id
@@ -1725,6 +1742,7 @@ class Watcher {
       this.historyLimit = historyLimit
       this.safeUndoRedo = safeUndoRedo
       this.cursor = {}
+      this.cursorSub = {}
       this.initHistory()
     }
 
@@ -1755,12 +1773,52 @@ class Watcher {
     }
   }
   getHistory(prop = null) {
+    if (!this.enableHistory) {
+      console.warn(
+        "Enable history attribute [history=true] on the x-data element",
+      )
+      return
+    }
+
     if (this.history !== null) {
       if (prop !== null && this.history[prop]) {
         return this.history[prop]
       }
       return this.history
     }
+  }
+  getCursor(expression, cb = null) {
+    if (!this.enableHistory) {
+      console.warn(
+        "Enable history attribute [history=true] on the x-data element",
+      )
+      return
+    }
+
+    log(this.cursor)
+
+    expression = expression.trim()
+    const [object, lastKey] = getNestedProp(this.cursor, expression)
+    // we subscribe for further changed
+    if (cb !== null) {
+      this.cursorSub[expression] = this.cursorSub[expression] || []
+      this.cursorSub[expression].push(cb)
+
+      // call on init
+      cb(object[lastKey])
+    }
+
+    log(`Getting cursor:[${expression}]=${object[lastKey]}`)
+    return object[lastKey]
+  }
+
+  getHistoryLimit() {
+    if (!this.enableHistory) {
+      console.warn(
+        "Enable history attribute [history=true] on the x-data element",
+      )
+    }
+    return this.historyLimit
   }
   undo(prop) {
     if (!this.enableHistory) {
@@ -1780,7 +1838,7 @@ class Watcher {
     }
     this.obj[prop] = this.history[prop][this.cursor[prop]]
     ;(this.sub[prop] || []).forEach((cb) => cb(this.obj[prop]))
-
+    ;(this.cursorSub[prop] || []).forEach((cb) => cb(this.cursor[prop]))
     return this.obj[prop]
   }
   redo(prop) {
@@ -1800,6 +1858,7 @@ class Watcher {
     }
     this.obj[prop] = this.history[prop][this.cursor[prop]]
     ;(this.sub[prop] || []).forEach((cb) => cb(this.obj[prop]))
+    ;(this.cursorSub[prop] || []).forEach((cb) => cb(this.cursor[prop]))
 
     return this.obj[prop]
   }
@@ -1840,6 +1899,9 @@ class Watcher {
       this.cursor[expression] = this.history[expression].length - 1
     }
     ;(this.sub[expression] || []).forEach((cb) => cb(value))
+    ;(this.cursorSub[expression] || []).forEach((cb) =>
+      cb(this.cursor[expression]),
+    )
   }
 
   batchedSetProp(prop, value, isPropArray = null) {
